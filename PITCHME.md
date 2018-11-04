@@ -13,23 +13,43 @@
 +++
 ## Quickstart
 ```kotlin
-   private fun sendPhotoFile(file: File) = Completable.fromAction {
-        val workManager = WorkManager.getInstance()
+val workManager = WorkManager.getInstance()
 
-        val workRequest = OneTimeWorkRequestBuilder<SendPhotoWorker>()
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .setRequiresBatteryNotLow(true)
-//                    .setRequiresCharging()
-//                    .setRequiresDeviceIdle()
-//                    .setRequiresStorageNotLow()
-                    .build()
-            ).setInputData(createSendPhotoRequest(file.path))
-            .build()
+val workConstraints = Constraints.Builder()
+   .setRequiredNetworkType(NetworkType.CONNECTED)
+   .setRequiresBatteryNotLow(true)
+// .setRequiresCharging()
+// .setRequiresDeviceIdle()
+// .setRequiresStorageNotLow()
+   .build() 
+val workRequest = OneTimeWorkRequestBuilder<SendPhotoWorker>()
+   .setConstraints(workConstraints)
+   .setInputData(createSendPhotoRequest(file.path))
+   .build()
 
-        workManager.enqueue(workRequest)
+workManager.enqueue(workRequest)
+```
+
++++
+## Quickstart Worker
+```kotlin
+class SendPhotoWorker(...) : Worker(...) {
+    private val filePath by lazy {
+        inputData.getString(PHOTO_PATH_KEY)
     }
+
+    override fun doWork(): Result {
+        val pathUri = Uri.fromFile(File(filePath))
+        val storage = FirebaseStorage.getInstance().reference
+        val stream = FileInputStream(File(filePath))
+        val uploadTask = storage.child("images/" + pathUri.lastPathSegment).putStream(stream)
+        Tasks.await(uploadTask)
+
+        return if (uploadTask.isSuccessful) Result.SUCCESS else Result.RETRY
+    }
+}
+
+fun createSendPhotoRequest(photoPath: String) = workDataOf(PHOTO_PATH_KEY to photoPath)
 ```
 ---
 ## Ustawienie ilości ponowień
